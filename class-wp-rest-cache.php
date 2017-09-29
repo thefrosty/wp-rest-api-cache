@@ -50,8 +50,8 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 
 			$skip = apply_filters( 'rest_cache_skip', WP_DEBUG, $request_uri, $server, $request );
 			if ( ! $skip ) {
-				$key = 'rest_cache_' . apply_filters( 'rest_cache_key', $request_uri, $server, $request );
-				if ( false === ( $result = get_transient( $key ) ) ) {
+				$key = apply_filters( 'rest_cache_key', $request_uri, $server, $request );
+				if ( false === ( $result = wp_cache_get( $key, 'rest_api' ) ) ) {
 					if ( is_null( self::$refresh ) ) {
 						self::$refresh = true;
 					}
@@ -60,7 +60,7 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 					$timeout = WP_REST_Cache_Admin::get_options( 'timeout' );
 					$timeout = apply_filters( 'rest_cache_timeout', $timeout['length'] * $timeout['period'], $timeout['length'], $timeout['period'] );
 					
-					set_transient( $key, $result, $timeout );
+					wp_cache_set( $key, $result, 'rest_api', $timeout );
 				}
 			}
 
@@ -68,13 +68,7 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 		}
 
 		public static function empty_cache() {
-			global $wpdb;
-
-			return $wpdb->query( $wpdb->prepare( 
-				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s", 
-				'_transient_rest_cache_%', 
-				'_transient_timeout_rest_cache_%' 
-			) );
+			return wp_cache_flush();
 		}
 
 	}
