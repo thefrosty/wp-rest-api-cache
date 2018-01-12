@@ -2,9 +2,9 @@
 Contributors: airesvsg
 Donate link: https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=airesvsg%40gmail%2ecom&lc=BR&item_name=Aires%20Goncalves&no_note=0&currency_code=USD&bn=PP%2dDonationsBF%3abtn_donateCC_LG%2egif%3aNonHostedGuest
 Tags: cache, rest, api, wp-api, wp-rest-api, json, wp, wordpress, wp-rest-api
-Requires at least: 4.3
-Tested up to: 4.5
-Stable tag: 1.2.0
+Requires at least: 4.7
+Tested up to: 4.7
+Stable tag: 2.0.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -20,6 +20,11 @@ Enable caching for WordPress REST API and increase speed of your application
 2. Activate the `WP REST API Cache` plugin via the plugin admin page
 
 == Changelog ==
+
+= 1.2.0 =
+* Change cache calls from *_transients to wp_cache_*.
+* Deprecate `WP_REST_Cache::empty_cache()` in favor of `WP_REST_Cache::flush_all_cache`.
+* Add `WP_REST_Cache::delete_cache()` to delete a specific cache key.
 
 = 1.2.0 =
 adding rest_cache_headers filter
