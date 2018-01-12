@@ -112,6 +112,15 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 				}
 			}
 
+			$server->send_header(
+				self::CACHE_HEADER,
+				esc_attr_x(
+					'cached',
+					'When rest_cache is cached. This is the header value.',
+					'wp-rest-api-cache'
+				)
+			);
+
 			return $result;
 		}
 
