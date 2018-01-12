@@ -73,11 +73,19 @@ add_filter( 'rest_cache_skip', function( $skip, $request_uri ) {
 }, 10, 2 );
 ```
 
+If `rest_cache_skip` is true, this action is called: `wp_rest_cache_skipped`.
+
+```PHP
+add_action( 'wp_rest_cache_skipped', function( $result, WP_REST_Server $server, WP_REST_Request $request ) {
+	// Do something here
+}, 10, 3 );
+```
+
 - **show / hide admin links**
 
 ![WP REST API Cache](http://airesgoncalves.com.br/screenshot/wp-rest-api-cache/readme/filter-admin-show.gif)
 
-- **empty cache on post-save**
+- **empty ALL cache on post-save** _this is not ideal_
 
 You can use WordPress' default filter "save_post" if you would like to empty **ALL** the cache on save of a post,
 page or custom post type.
@@ -86,6 +94,23 @@ page or custom post type.
 add_action( 'save_post', function( $post_id ) {
   if ( class_exists( 'WP_REST_Cache' ) ) {
     WP_REST_Cache::flush_all_cache();
+  }
+} );
+```
+
+- **clear endpoint cache on transition**
+
+You can use WordPress' default filter "save_post" if you would like to empty **ALL** the cache on save of a post,
+page or custom post type. THIS IS A WORK IN PROGRESS.
+
+```PHP
+add_action( 'transition_post_status', function( $new_status, $old_status, WP_Post $post ) {
+  if ( 'publish' === $new_status && 'publish' !== $old_status ) {
+    if ( class_exists( 'WP_REST_Cache' ) ) {
+        //$url = get_permalink( $post->ID );
+        //$key = WP_REST_Cache::get_cache_key();
+        //WP_REST_Cache::delete_cache_by_key( $key );
+    }
   }
 } );
 ```

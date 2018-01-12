@@ -20,15 +20,9 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 	 */
 	class WP_REST_Cache {
 
-		const CACHE_GROUP = 'rest_api';
-		const VERSION = '2.0.0';
-
-		/**
-		 * Should the cache be refreshed.
-		 *
-		 * @var null|bool
-		 */
-		private static $refresh = null;
+		const CACHE_HEADER = 'X-WP-API-Cache';
+		const CACHE_GROUP  = 'rest_api';
+		const VERSION      = '2.0.0';
 
 		/**
 		 * Initiate the class.
@@ -65,26 +59,51 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 		public static function pre_dispatch( $result, WP_REST_Server $server, WP_REST_Request $request ) {
 			$request_uri = filter_input( 'INPUT_SERVER', 'REQUEST_URI', FILTER_SANITIZE_URL );
 
-			if ( method_exists( $server, 'send_headers' ) && ! headers_sent() ) {
+			if ( method_exists( $server, 'send_headers' ) ) {
 				$headers = apply_filters( 'rest_cache_headers', array(), $request_uri, $server, $request );
 				if ( ! empty( $headers ) ) {
 					$server->send_headers( $headers );
 				}
 			}
 
-			if ( true === self::$refresh || true === $request->get_param( 'refresh-cache' ) ) {
+			if ( true === $request->get_param( 'refresh-cache' ) ) {
+				$server->send_header( self::CACHE_HEADER, 'refreshed' );
+				$server->send_header(
+					self::CACHE_HEADER,
+					esc_attr_x(
+						'refreshed',
+						'When the wp-api cache is skipped. This is the header value.',
+						'wp-rest-api-cache'
+					)
+				);
+
 				return $result;
 			}
 
 			$skip = apply_filters( 'rest_cache_skip', WP_DEBUG, $request_uri, $server, $request );
-			if ( ! $skip ) {
+			if ( $skip ) {
+				$server->send_header(
+					self::CACHE_HEADER,
+					esc_attr_x(
+						'skipped',
+						'When rest_cache is skipped. This is the header value.',
+						'wp-rest-api-cache'
+					)
+				);
+				/**
+				 * Action hook when the cache is skipped.
+				 *
+				 * @param mixed           $result Response to replace the requested version with. Can be anything
+				 *                                 a normal endpoint can return, or null to not hijack the request.
+				 * @param WP_REST_Server  $server Server instance.
+				 * @param WP_REST_Request $request Request used to generate the response.
+				 */
+				do_action( 'wp_rest_cache_skipped', $result, $server, $request );
+			} else {
 				$key   = self::get_cache_key( $request, $server, $request );
 				$group = self::get_cache_group();
 				if ( false === ( $result = wp_cache_get( $key, $group ) ) ) {
-					if ( is_null( self::$refresh ) ) {
-						self::$refresh = true;
-					}
-					
+					$request->set_param( 'refresh-cache', true );
 					$result  = $server->dispatch( $request );
 					$timeout = WP_REST_Cache_Admin::get_options( 'timeout' );
 					$timeout = apply_filters( 'rest_cache_timeout', $timeout['length'] * $timeout['period'], $timeout['length'], $timeout['period'] );
@@ -102,16 +121,20 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 		 * @param string               $request_uri The REQUEST_URI
 		 * @param WP_REST_Server|null  $server An instance of WP_REST_Server
 		 * @param WP_REST_Request|null $request An instance of WP_REST_Request
+		 * @param string|null          $url Full URL to pass to WP_REST_Request
 		 * @return string
 		 */
-		public static function get_cache_key( $request_uri, WP_REST_Server $server = null, WP_REST_Request $request = null ) {
+		public static function get_cache_key( $request_uri, WP_REST_Server $server = null, WP_REST_Request $request = null, $url = null ) {
 			if ( ! ( $server instanceof WP_REST_Server ) ) {
 				$server = rest_get_server();
 			}
 
 			if ( ! ( $request instanceof WP_REST_Request ) ) {
-				// Maybe look at WP_REST_Request::from_url( 'http://example.com/wp-json/wp/v2/posts' );
-				$request = new WP_REST_Request();
+				if ( is_string( $url ) ) {
+					$request = WP_REST_Request::from_url( $url );
+				} else {
+					$request = new WP_REST_Request();
+				}
 			}
 
 			return filter_var(
