@@ -18,6 +18,7 @@ Filters
 | rest_cache_headers | array **$headers**<br>string **$request_uri**<br>WP_REST_Server **$server**<br>WP_REST_Request **$request** |
 | rest_cache_skip | boolean **$skip** ( default: WP_DEBUG )<br>string **$request_uri**<br>WP_REST_Server **$server**<br>WP_REST_Request **$request** |
 | rest_cache_key | string **$request_uri**<br>WP_REST_Server **$server**<br>WP_REST_Request **$request** |
+| rest_cache_group | string **$cache_group** |
 | rest_cache_timeout | int **$timeout**<br>int **$length**<br>int **$period** |
 | rest_cache_update_options | array **$options** |
 | rest_cache_get_options | array **$options** |
@@ -78,12 +79,13 @@ add_filter( 'rest_cache_skip', function( $skip, $request_uri ) {
 
 - **empty cache on post-save**
 
-You can use the wordpress default filter "save_post" if you like to empty the cache on every save of a post, page or custom post type.
+You can use WordPress' default filter "save_post" if you would like to empty **ALL** the cache on save of a post,
+page or custom post type.
 
 ```PHP
 add_action( 'save_post', function( $post_id ) {
   if ( class_exists( 'WP_REST_Cache' ) ) {
-    WP_REST_Cache::empty_cache();
+    WP_REST_Cache::flush_all_cache();
   }
 } );
 ```

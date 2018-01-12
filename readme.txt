@@ -22,6 +22,11 @@ Enable caching for WordPress REST API and increase speed of your application
 == Changelog ==
 
 = 1.2.0 =
+* Change cache calls from *_transients to wp_cache_*.
+* Deprecate `WP_REST_Cache::empty_cache()` in favor of `WP_REST_Cache::flush_all_cache`.
+* Add `WP_REST_Cache::delete_cache()` to delete a specific cache key.
+
+= 1.2.0 =
 adding rest_cache_headers filter
 
 = 1.1.0 =
