@@ -52,12 +52,17 @@ if ( ! class_exists( 'WP_REST_Cache_Admin' ) ) {
 		 */
 		public static function admin_bar_menu( WP_Admin_Bar $wp_admin_bar ) {
 			$args = array(
-				'id'    => 'wp-rest-api-cache-empty',
-				'title' => __( 'Empty WP REST API Cache', 'wp-rest-api-cache' ),
-				'href'  => esc_url( self::_empty_cache_url() ),
+				'id'    => 'wp-rest-api-cache',
+				'title' => __( 'REST API Cache', 'wp-rest-api-cache' ),
 			);
 
 			$wp_admin_bar->add_node( $args );
+			$wp_admin_bar->add_menu( array(
+				'parent' => 'wp-rest-api-cache',
+				'id'     => 'wp-rest-api-cache-empty',
+				'title'  => __( 'Empty all cache', 'wp-rest-api-cache' ),
+				'href'   => esc_url( self::_empty_cache_url() ),
+			) );
 		}
 
 		/**
@@ -67,7 +72,7 @@ if ( ! class_exists( 'WP_REST_Cache_Admin' ) ) {
 			add_submenu_page(
 				'options-general.php',
 				__( 'WP REST API Cache', 'wp-rest-api-cache' ),
-				__( 'WP REST API Cache', 'wp-rest-api-cache' ),
+				__( 'REST API Cache', 'wp-rest-api-cache' ),
 				'manage_options',
 				'rest-cache',
 				array( __CLASS__, 'render_page' )
@@ -78,24 +83,26 @@ if ( ! class_exists( 'WP_REST_Cache_Admin' ) ) {
 		 * Render the admin settings page.
 		 */
 		public static function render_page() {
-			$notice = null;
+			$notice  = null;
+			$type    = 'updated';
+			$message = esc_html__( 'Nothing to see here.', 'wp-rest-api-cache' );
 
 			if ( isset( $_REQUEST['rest_cache_nonce'] ) && wp_verify_nonce( $_REQUEST['rest_cache_nonce'], 'rest_cache_options' ) ) {
-				if ( isset( $_GET['rest_cache_empty'] ) && 1 === $_GET['rest_cache_empty'] ) {
+				if ( isset( $_GET['rest_cache_empty'] ) && 1 === filter_var( $_GET['rest_cache_empty'], FILTER_VALIDATE_INT ) ) {
 					if ( WP_REST_Cache::flush_all_cache() ) {
 						$type    = 'updated';
-						$message = __( 'The cache has been successfully cleared', 'wp-rest-api-cache' );
+						$message = esc_html__( 'The cache has been successfully cleared', 'wp-rest-api-cache' );
 					} else {
 						$type    = 'error';
-						$message = __( 'The cache is already empty', 'wp-rest-api-cache' );
+						$message = esc_html__( 'The cache is already empty', 'wp-rest-api-cache' );
 					}
 				} elseif ( isset( $_POST['rest_cache_options'] ) && ! empty( $_POST['rest_cache_options'] ) ) {
 					if ( self::_update_options( $_POST['rest_cache_options'] ) ) {
 						$type    = 'updated';
-						$message = __( 'The cache time has been updated', 'wp-rest-api-cache' );
+						$message = esc_html__( 'The cache time has been updated', 'wp-rest-api-cache' );
 					} else {
 						$type    = 'error';
-						$message = __( 'The cache time has not been updated', 'wp-rest-api-cache' );
+						$message = esc_html__( 'The cache time has not been updated', 'wp-rest-api-cache' );
 					}
 				}
 				add_settings_error( 'wp-rest-api-notice', esc_attr( 'settings_updated' ), $message, $type );
