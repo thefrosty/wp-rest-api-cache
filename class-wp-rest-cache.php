@@ -21,6 +21,7 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 	class WP_REST_Cache {
 
 		const CACHE_DELETE        = 'rest_cache_delete';
+		const CACHE_FORCE_DELETE  = 'rest_force_delete';
 		const CACHE_GROUP         = 'rest_api';
 		const CACHE_HEADER        = 'X-WP-API-Cache';
 		const CACHE_HEADER_DELETE = 'X-WP-API-Cache-Delete';
@@ -62,23 +63,28 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 		 * @return mixed Response
 		 */
 		public static function pre_dispatch( $result, WP_REST_Server $server, WP_REST_Request $request ) {
-			$request_uri = filter_var( $_SERVER['REQUEST_URI'], FILTER_SANITIZE_URL );
+			$request_uri = self::get_request_uri();
 			$key         = self::get_cache_key( $request_uri, $server, $request );
 			$group       = self::get_cache_group();
 
-			$headers = apply_filters( 'rest_cache_headers', array(), $request_uri, $server, $request );
-			if ( ! empty( $headers ) ) {
-				$server->send_headers( $headers );
-			}
+			self::maybe_send_headers( $request_uri, $server, $request );
 
 			// Delete the cache.
 			$delete = filter_var( $request->get_param( self::CACHE_DELETE ), FILTER_VALIDATE_BOOLEAN );
+			$force  = filter_var( $request->get_param( self::CACHE_FORCE_DELETE ), FILTER_VALIDATE_BOOLEAN );
 			if ( $delete ) {
-				if ( self::delete_cache_by_key( $key ) ) {
-					$server->send_header( self::CACHE_HEADER_DELETE, 'true' );
-					$request->set_param( self::CACHE_DELETE, false );
+				if ( $force ) {
+					if ( self::delete_cache_by_key( $key ) ) {
+						$server->send_header( self::CACHE_HEADER_DELETE, 'true' );
+						$request->set_param( self::CACHE_DELETE, false );
 
-					return self::get_cached_result( $server, $request, $key, $group );
+						return self::get_cached_result( $server, $request, $key, $group );
+					}
+				} else {
+					$server->send_header( self::CACHE_HEADER_DELETE, 'soft' );
+					add_action( 'shutdown', function() use ( $key ) {
+						call_user_func( array( __CLASS__, 'delete_cache_by_key' ), $key );
+					} );
 				}
 			}
 
@@ -140,12 +146,15 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 		 *
 		 * @todo Implement cache on this method over 'pre'.
 		 *
-		 * @param WP_HTTP_Response $response
+		 * @param WP_REST_Response $response
 		 * @param WP_REST_Server   $server
 		 * @param WP_REST_Request  $request
 		 * @return WP_HTTP_Response
 		 */
-		public static function post_dispatch( WP_HTTP_Response $response, WP_REST_Server $server, WP_REST_Request $request ) {
+		public static function post_dispatch( WP_REST_Response $response, WP_REST_Server $server, WP_REST_Request $request ) {
+			$request_uri = self::get_request_uri();
+			self::maybe_send_headers( $request_uri, $server, $request, $response );
+
 			return $response;
 		}
 
@@ -218,6 +227,30 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 		 */
 		public static function delete_cache_by_key( $key ) {
 			return wp_cache_delete( $key, self::get_cache_group() );
+		}
+
+		/**
+		 * Return the current REQUEST_URI from the global server variable.
+		 *
+		 * @return string
+		 */
+		private static function get_request_uri() {
+			return filter_var( $_SERVER['REQUEST_URI'], FILTER_SANITIZE_URL );
+		}
+
+		/**
+		 * Send server headers if we have headers to send.
+		 *
+		 * @param string                $request_uri
+		 * @param WP_REST_Server        $server
+		 * @param WP_REST_Request       $request
+		 * @param null|WP_REST_Response $response
+		 */
+		private static function maybe_send_headers( $request_uri, WP_REST_Server $server, WP_REST_Request $request, WP_REST_Response $response = null ) {
+			$headers = apply_filters( 'rest_cache_headers', array(), $request_uri, $server, $request, $response );
+			if ( ! empty( $headers ) ) {
+				$server->send_headers( $headers );
+			}
 		}
 
 		/**
