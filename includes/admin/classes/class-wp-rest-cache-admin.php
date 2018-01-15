@@ -67,7 +67,7 @@ if ( ! class_exists( 'WP_REST_Cache_Admin' ) ) {
 				'parent' => 'wp-rest-api-cache',
 				'id'     => 'wp-rest-api-cache-empty',
 				'title'  => __( 'Empty all cache', 'wp-rest-api-cache' ),
-				'href'   => esc_url( self::_empty_cache_url() ),
+				'href'   => esc_url( self::get_empty_cache_url() ),
 			) );
 		}
 
@@ -90,6 +90,7 @@ if ( ! class_exists( 'WP_REST_Cache_Admin' ) ) {
 		 */
 		public static function admin_action() {
 			self::request_callback();
+
 			$url = wp_nonce_url(
 				add_query_arg( array( self::NOTICE => 1 ), wp_get_referer() ),
 				'rest_cache_redirect',
@@ -103,8 +104,8 @@ if ( ! class_exists( 'WP_REST_Cache_Admin' ) ) {
 		 * Maybe add an admin notice.
 		 */
 		public static function admin_notices() {
-			if ( isset( $_REQUEST['rest_cache_nonce'] ) && wp_verify_nonce( $_REQUEST['rest_cache_nonce'], 'rest_cache_redirect' ) ) {
-				if ( isset( $_GET[ self::NOTICE ] ) && 1 === filter_var( $_GET[ self::NOTICE ], FILTER_VALIDATE_INT ) ) {
+			if ( ! empty( $_REQUEST['rest_cache_nonce'] ) && wp_verify_nonce( $_REQUEST['rest_cache_nonce'], 'rest_cache_redirect' ) ) {
+				if ( ! empty( $_GET[ self::NOTICE ] ) && 1 === filter_var( $_GET[ self::NOTICE ], FILTER_VALIDATE_INT ) ) {
 					$message = esc_html__( 'The cache has been successfully cleared', 'wp-rest-api-cache' );
 					echo "<div class='notice updated is-dismissible'><p>{$message}</p></div>"; // PHPCS: XSS OK.
 				}
@@ -115,14 +116,10 @@ if ( ! class_exists( 'WP_REST_Cache_Admin' ) ) {
 		 * Render the admin settings page.
 		 */
 		public static function render_page() {
-			$notice  = null;
-			$type    = 'updated';
-			$message = esc_html__( 'Nothing to see here.', 'wp-rest-api-cache' );
-
 			self::request_callback();
 
+			$cache_url = self::get_empty_cache_url();
 			$options   = self::get_options();
-			$cache_url = self::_empty_cache_url();
 
 			require_once dirname( __FILE__ ) . '/../views/html-options.php';
 		}
@@ -131,6 +128,9 @@ if ( ! class_exists( 'WP_REST_Cache_Admin' ) ) {
 		 * Helper to check the request action.
 		 */
 		private static function request_callback() {
+			$type    = 'updated';
+			$message = esc_html__( 'Nothing to see here.', 'wp-rest-api-cache' );
+
 			if ( isset( $_REQUEST['rest_cache_nonce'] ) && wp_verify_nonce( $_REQUEST['rest_cache_nonce'], 'rest_cache_options' ) ) {
 				if ( isset( $_GET['rest_cache_empty'] ) && 1 === filter_var( $_GET['rest_cache_empty'], FILTER_VALIDATE_INT ) ) {
 					if ( WP_REST_Cache::flush_all_cache() ) {
@@ -168,7 +168,7 @@ if ( ! class_exists( 'WP_REST_Cache_Admin' ) ) {
 		/**
 		 * Get an option from our options array.
 		 *
-		 * @param null $key Option key value.
+		 * @param null|string $key Option key value.
 		 * @return mixed
 		 */
 		public static function get_options( $key = null ) {
@@ -186,7 +186,7 @@ if ( ! class_exists( 'WP_REST_Cache_Admin' ) ) {
 		 *
 		 * @return string
 		 */
-		private static function _empty_cache_url() {
+		private static function get_empty_cache_url() {
 			if ( apply_filters( 'rest_cache_show_admin_menu', true ) ) {
 				return wp_nonce_url(
 					admin_url( 'options-general.php?page=rest-cache&rest_cache_empty=1' ),
