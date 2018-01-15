@@ -15,7 +15,7 @@ Filters
 ====
 | Filter    | Argument(s) |
 |-----------|-----------|
-| rest_cache_headers | array **$headers**<br>string **$request_uri**<br>WP_REST_Server **$server**<br>WP_REST_Request **$request** |
+| rest_cache_headers | array **$headers**<br>string **$request_uri**<br>WP_REST_Server **$server**<br>WP_REST_Request **$request**<br>WP_REST_Response **$response (`rest_post_dispatch` only)** |
 | rest_cache_skip | boolean **$skip** ( default: WP_DEBUG )<br>string **$request_uri**<br>WP_REST_Server **$server**<br>WP_REST_Request **$request** |
 | rest_cache_key | string **$request_uri**<br>WP_REST_Server **$server**<br>WP_REST_Request **$request** |
 | rest_cache_group | string **$cache_group** |
@@ -81,6 +81,14 @@ add_action( 'wp_rest_cache_skipped', function( $result, WP_REST_Server $server, 
 }, 10, 3 );
 ```
 
+- **deleting cache**
+
+**Soft delete**:
+Append `rest_cache_delete` to your query param; `&rest_cache_delete=1`.  
+_soft delete will delete the cache after the current request completes (on WordPress shutdown)._ 
+
+**Hard delete**: Append `rest_cache_delete` && `rest_force_delete` to your query param; `&rest_cache_delete=1&rest_force_delete=1`.  
+_hard delete will delete the cache before the request, forcing it to repopulate._
 - **show / hide admin links**
 
 ![WP REST API Cache](http://airesgoncalves.com.br/screenshot/wp-rest-api-cache/readme/filter-admin-show.gif)
