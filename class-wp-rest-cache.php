@@ -20,9 +20,13 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 	 */
 	class WP_REST_Cache {
 
-		const CACHE_HEADER = 'X-WP-API-Cache';
-		const CACHE_GROUP  = 'rest_api';
-		const VERSION      = '2.0.0';
+		const CACHE_DELETE        = 'rest_cache_delete';
+		const CACHE_GROUP         = 'rest_api';
+		const CACHE_HEADER        = 'X-WP-API-Cache';
+		const CACHE_HEADER_DELETE = 'X-WP-API-Cache-Delete';
+		const CACHE_REFRESH       = 'rest_cache_refresh';
+
+		const VERSION = '2.0.1';
 
 		/**
 		 * Initiate the class.
@@ -44,6 +48,7 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 		 */
 		private static function hooks() {
 			add_filter( 'rest_pre_dispatch', array( __CLASS__, 'pre_dispatch' ), 10, 3 );
+			add_filter( 'rest_post_dispatch', array( __CLASS__, 'post_dispatch' ), 10, 3 );
 		}
 
 		/**
@@ -57,17 +62,29 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 		 * @return mixed Response
 		 */
 		public static function pre_dispatch( $result, WP_REST_Server $server, WP_REST_Request $request ) {
-			$request_uri = filter_input( 'INPUT_SERVER', 'REQUEST_URI', FILTER_SANITIZE_URL );
+			$request_uri = filter_var( $_SERVER['REQUEST_URI'], FILTER_SANITIZE_URL );
+			$key         = self::get_cache_key( $request_uri, $server, $request );
+			$group       = self::get_cache_group();
 
-			if ( method_exists( $server, 'send_headers' ) ) {
-				$headers = apply_filters( 'rest_cache_headers', array(), $request_uri, $server, $request );
-				if ( ! empty( $headers ) ) {
-					$server->send_headers( $headers );
+			$headers = apply_filters( 'rest_cache_headers', array(), $request_uri, $server, $request );
+			if ( ! empty( $headers ) ) {
+				$server->send_headers( $headers );
+			}
+
+			// Delete the cache.
+			$delete = filter_var( $request->get_param( self::CACHE_DELETE ), FILTER_VALIDATE_BOOLEAN );
+			if ( $delete ) {
+				if ( self::delete_cache_by_key( $key ) ) {
+					$server->send_header( self::CACHE_HEADER_DELETE, 'true' );
+					$request->set_param( self::CACHE_DELETE, false );
+
+					return self::get_cached_result( $server, $request, $key, $group );
 				}
 			}
 
-			if ( true === $request->get_param( 'refresh-cache' ) ) {
-				$server->send_header( self::CACHE_HEADER, 'refreshed' );
+			// Cache is refreshed (cached below).
+			$refresh = filter_var( $request->get_param( self::CACHE_REFRESH ), FILTER_VALIDATE_BOOLEAN );
+			if ( $refresh ) {
 				$server->send_header(
 					self::CACHE_HEADER,
 					esc_attr_x(
@@ -78,9 +95,21 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 				);
 
 				return $result;
+			} else {
+				$server->send_header(
+					self::CACHE_HEADER,
+					esc_attr_x(
+						'cached',
+						'When rest_cache is cached. This is the header value.',
+						'wp-rest-api-cache'
+					)
+				);
 			}
 
-			$skip = apply_filters( 'rest_cache_skip', WP_DEBUG, $request_uri, $server, $request );
+			$skip = filter_var(
+				apply_filters( 'rest_cache_skip', WP_DEBUG, $request_uri, $server, $request ),
+				FILTER_VALIDATE_BOOLEAN
+			);
 			if ( $skip ) {
 				$server->send_header(
 					self::CACHE_HEADER,
@@ -99,29 +128,25 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 				 * @param WP_REST_Request $request Request used to generate the response.
 				 */
 				do_action( 'wp_rest_cache_skipped', $result, $server, $request );
-			} else {
-				$key   = self::get_cache_key( $request, $server, $request );
-				$group = self::get_cache_group();
-				if ( false === ( $result = wp_cache_get( $key, $group ) ) ) {
-					$request->set_param( 'refresh-cache', true );
-					$result  = $server->dispatch( $request );
-					$timeout = WP_REST_Cache_Admin::get_options( 'timeout' );
-					$timeout = apply_filters( 'rest_cache_timeout', $timeout['length'] * $timeout['period'], $timeout['length'], $timeout['period'] );
-					
-					wp_cache_set( $key, $result, $group, $timeout );
-				}
+
+				return $result;
 			}
 
-			$server->send_header(
-				self::CACHE_HEADER,
-				esc_attr_x(
-					'cached',
-					'When rest_cache is cached. This is the header value.',
-					'wp-rest-api-cache'
-				)
-			);
+			return self::get_cached_result( $server, $request, $key, $group );
+		}
 
-			return $result;
+		/**
+		 * Filters the post-calculated result of a REST dispatch request.
+		 *
+		 * @todo Implement cache on this method over 'pre'.
+		 *
+		 * @param WP_HTTP_Response $response
+		 * @param WP_REST_Server   $server
+		 * @param WP_REST_Request  $request
+		 * @return WP_HTTP_Response
+		 */
+		public static function post_dispatch( WP_HTTP_Response $response, WP_REST_Server $server, WP_REST_Request $request ) {
+			return $response;
 		}
 
 		/**
@@ -146,8 +171,11 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 				}
 			}
 
+			// Be sure to remove our added cache refresh & cache delete queries.
+			$uri = remove_query_arg( array( self::CACHE_DELETE, self::CACHE_REFRESH ), $request_uri );
+
 			return filter_var(
-				apply_filters( 'rest_cache_key', $request_uri, $server, $request ),
+				apply_filters( 'rest_cache_key', $uri, $server, $request ),
 				FILTER_SANITIZE_STRING
 			);
 		}
@@ -190,6 +218,43 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 		 */
 		public static function delete_cache_by_key( $key ) {
 			return wp_cache_delete( $key, self::get_cache_group() );
+		}
+
+		/**
+		 * Get the result from cache.
+		 *
+		 * @param WP_REST_Server  $server
+		 * @param WP_REST_Request $request
+		 * @param string          $key
+		 * @param string          $group
+		 * @return bool|mixed|WP_REST_Response
+		 */
+		private static function get_cached_result( WP_REST_Server $server, WP_REST_Request $request, $key, $group ) {
+			$result = wp_cache_get( $key, $group );
+			if ( false === $result ) {
+				$result  = self::dispatch_request( $server, $request );
+				$timeout = WP_REST_Cache_Admin::get_options( 'timeout' );
+				$timeout = apply_filters( 'rest_cache_timeout', $timeout['length'] * $timeout['period'], $timeout['length'], $timeout['period'] );
+
+				wp_cache_set( $key, $result, $group, $timeout );
+
+				return $result;
+			}
+
+			return $result;
+		}
+
+		/**
+		 * Dispatch the REST request.
+		 *
+		 * @param WP_REST_Server  $server
+		 * @param WP_REST_Request $request
+		 * @return WP_REST_Response
+		 */
+		private static function dispatch_request( WP_REST_Server $server, WP_REST_Request $request ) {
+			$request->set_param( self::CACHE_REFRESH, true );
+
+			return $server->dispatch( $request );
 		}
 	}
 
