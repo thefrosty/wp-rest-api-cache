@@ -1,8 +1,10 @@
 WP REST API Cache
 ====
-Enable caching for WordPress REST API and increase speed of your application
+Enable caching for the WordPress REST API and the increase speed of your application.
 
 - [Installation](#installation)
+- [Actions](#actions)
+- [How to use actions](#how-to-use-actions)
 - [Filters](#filters)
 - [How to use filters](#how-to-use-filters)
 
@@ -10,6 +12,48 @@ Installation
 ====
 1. Copy the `wp-rest-api-cache` folder into your `wp-content/plugins` folder
 2. Activate the `WP REST API Cache` plugin via the plugin admin page
+
+Actions
+====
+| Action    | Argument(s) |
+|-----------|-----------|
+| wp_rest_cache_skipped | mixed **$result**<br>WP_REST_Server **$server**<br>WP_REST_Request **$request** |
+| rest_cache_request_flush_cache | string **$message**<br>string **$type**<br>WP_User **$user** |
+
+How to use actions
+----
+
+```PHP
+add_action( 'wp_rest_cache_skipped', function( $result, \WP_REST_Server $server, \WP_REST_Request $request ) {
+	// Do something here, like create a log entry using Wonolog.
+	do_action( 'wonolog.log', new Log(
+		sprintf( 'The `%s` REST route cache was skipped.', $request->get_route() ),
+		\Monolog\Logger::NOTICE,
+		\Inpsyde\Wonolog\Channels::DEBUG,
+		[
+			$result,
+			$server,
+			$request,
+		]
+	) );
+}, 10, 3 );
+```
+
+```PHP
+add_action( 'rest_cache_request_flush_cache', function( $message, $type, WP_User $user ) {
+	// Do something here, like create a log entry using Wonolog.
+	do_action( 'wonolog.log', new Log(
+		sprintf( 'The `%s` user just flushed the object cache.', $user->user_login ),
+		\Monolog\Monolog\Logger::NOTICE,
+		\Inpsyde\Wonolog\Channels::DEBUG,
+		[
+			$message,
+			$type,
+			$user
+		]
+	) );
+}, 10, 3 );
+```
 
 Filters
 ====
