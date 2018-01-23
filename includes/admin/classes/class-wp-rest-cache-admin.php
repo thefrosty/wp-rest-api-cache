@@ -128,7 +128,7 @@ if ( ! class_exists( 'WP_REST_Cache_Admin' ) ) {
 		 * Helper to check the request action.
 		 */
 		private static function request_callback() {
-			$type    = 'updated';
+			$type    = 'warning';
 			$message = esc_html__( 'Nothing to see here.', 'wp-rest-api-cache' );
 
 			if ( isset( $_REQUEST['rest_cache_nonce'] ) && wp_verify_nonce( $_REQUEST['rest_cache_nonce'], 'rest_cache_options' ) ) {
@@ -140,6 +140,14 @@ if ( ! class_exists( 'WP_REST_Cache_Admin' ) ) {
 						$type    = 'error';
 						$message = esc_html__( 'The cache is already empty', 'wp-rest-api-cache' );
 					}
+					/**
+					 * Action hook when the cache is flushed.
+					 *
+					 * @param string $message The message set.
+					 * @param string $type The settings error code.
+					 * @param WP_User The current user.
+					 */
+					do_action( 'rest_cache_request_flush_cache', $message, $type, wp_get_current_user() );
 				} elseif ( isset( $_POST['rest_cache_options'] ) && ! empty( $_POST['rest_cache_options'] ) ) {
 					if ( self::_update_options( $_POST['rest_cache_options'] ) ) {
 						$type    = 'updated';
