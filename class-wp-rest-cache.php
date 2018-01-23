@@ -4,7 +4,7 @@
  * Description: Enable caching for WordPress REST API and increase speed of your application
  * Author: Aires Gonçalves
  * Author URI: http://github.com/airesvsg
- * Version: 2.0.0
+ * Version: 2.0.2
  * Plugin URI: https://github.com/airesvsg/wp-rest-api-cache
  * License: GPL2+
  */
@@ -27,7 +27,7 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 		const CACHE_HEADER_DELETE = 'X-WP-API-Cache-Delete';
 		const CACHE_REFRESH       = 'rest_cache_refresh';
 
-		const VERSION = '2.0.1';
+		const VERSION = '2.0.2';
 
 		/**
 		 * Initiate the class.
