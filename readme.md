@@ -69,6 +69,7 @@ Filters
 | rest_cache_show_admin | boolean **$show** |
 | rest_cache_show_admin_menu | boolean **$show** |
 | rest_cache_show_admin_bar_menu | boolean **$show** |
+| allowed_rest_cache_status | array **$status** HTTP Header statuses (defaults to `array( 200 )` |
 
 How to use filters
 ----

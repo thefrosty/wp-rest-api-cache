@@ -4,7 +4,7 @@
  * Description: Enable caching for WordPress REST API and increase speed of your application
  * Author: Aires Gonçalves
  * Author URI: http://github.com/airesvsg
- * Version: 2.0.2
+ * Version: 2.0.3
  * Plugin URI: https://github.com/airesvsg/wp-rest-api-cache
  * License: GPL2+
  */
@@ -27,7 +27,7 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 		const CACHE_HEADER_DELETE = 'X-WP-API-Cache-Delete';
 		const CACHE_REFRESH       = 'rest_cache_refresh';
 
-		const VERSION = '2.0.2';
+		const VERSION = '2.0.3';
 
 		/**
 		 * Initiate the class.
@@ -153,6 +153,21 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 		 */
 		public static function post_dispatch( WP_REST_Response $response, WP_REST_Server $server, WP_REST_Request $request ) {
 			$request_uri = self::get_request_uri();
+			$allowed_cache_status = apply_filters( 'allowed_rest_cache_status', array( WP_Http::OK ) );
+			if ( ! in_array( $response->get_status(), $allowed_cache_status, true ) ) {
+				$key = self::get_cache_key( $request_uri, $server, $request );
+				$server->send_header(
+					self::CACHE_HEADER,
+					esc_attr_x(
+						'skipped',
+						'When rest_cache is skipped. This is the header value.',
+						'wp-rest-api-cache'
+					)
+				);
+				add_action( 'shutdown', function() use ( $key ) {
+					call_user_func( array( __CLASS__, 'delete_cache_by_key' ), $key );
+				} );
+			}
 			self::maybe_send_headers( $request_uri, $server, $request, $response );
 
 			return $response;
