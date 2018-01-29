@@ -2,11 +2,10 @@
 /**
  * Plugin Name: WP REST API Cache
  * Description: Enable caching for WordPress REST API and increase speed of your application
- * Author: Aires Gonçalves
- * Author URI: http://github.com/airesvsg
- * Version: 2.0.3
- * Plugin URI: https://github.com/airesvsg/wp-rest-api-cache
- * License: GPL2+
+ * Author: Austin Passy
+ * Author URI: http://github.com/thefrosty
+ * Version: 2.0.4
+ * Plugin URI: https://github.com/thefrosty/wp-rest-api-cache
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -27,7 +26,7 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 		const CACHE_HEADER_DELETE = 'X-WP-API-Cache-Delete';
 		const CACHE_REFRESH       = 'rest_cache_refresh';
 
-		const VERSION = '2.0.3';
+		const VERSION = '2.0.4';
 
 		/**
 		 * Initiate the class.
@@ -66,6 +65,18 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 			$request_uri = self::get_request_uri();
 			$key         = self::get_cache_key( $request_uri, $server, $request );
 			$group       = self::get_cache_group();
+
+			// Never cache private, no-cache, no-store, must-revalidate
+			$cache_control = $request->get_header( 'Cache-Control' );
+			if ( $cache_control !== null ) {
+				$no_cache = apply_filters( 'rest_cache_control_no_cache_value', array( 'private', 'no-cache', 'no-store', 'must-revalidate' ) );
+				$controls = array_map( 'trim', explode( ',', $cache_control ) );
+				foreach ( $controls as $control ) {
+					if ( isset( $no_cache[ $control ] ) && strcasecmp( $control, $no_cache[ $control ] ) === 0 ) {
+						return $result;
+					}
+				}
+			}
 
 			self::maybe_send_headers( $request_uri, $server, $request );
 
@@ -308,5 +319,5 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 
 	add_action( 'init', array( 'WP_REST_Cache', 'init' ) );
 
-	register_uninstall_hook( __FILE__, array( 'WP_REST_Cache', 'empty_cache' ) );
+	register_uninstall_hook( __FILE__, array( 'WP_REST_Cache', 'flush_all_cache' ) );
 }
