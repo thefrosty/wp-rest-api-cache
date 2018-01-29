@@ -11,8 +11,10 @@ if ( ! class_exists( 'WP_REST_Cache_Admin' ) ) {
 	 */
 	class WP_REST_Cache_Admin {
 
-		const ACTION = 'rest_api_cache_flush';
-		const NOTICE = 'rest_flush';
+		const ADMIN_ACTION = 'rest_api_cache_flush';
+		const NONCE_ACTION = 'rest_cache_redirect';
+		const NONCE_NAME   = 'rest_cache_nonce';
+		const NOTICE       = 'rest_flush';
 
 		/**
 		 * Default settings.
@@ -41,7 +43,7 @@ if ( ! class_exists( 'WP_REST_Cache_Admin' ) ) {
 				if ( apply_filters( 'rest_cache_show_admin_menu', true ) ) {
 					add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ) );
 				} else {
-					add_action( 'admin_action_' . self::ACTION, array( __CLASS__, 'admin_action' ) );
+					add_action( 'admin_action_' . self::ADMIN_ACTION, array( __CLASS__, 'admin_action' ) );
 					add_action( 'admin_notices', array( __CLASS__, 'admin_notices' ) );
 				}
 
@@ -92,9 +94,12 @@ if ( ! class_exists( 'WP_REST_Cache_Admin' ) ) {
 			self::request_callback();
 
 			$url = wp_nonce_url(
-				add_query_arg( array( self::NOTICE => 1 ), wp_get_referer() ),
-				'rest_cache_redirect',
-				'rest_cache_nonce'
+				add_query_arg(
+					array( self::NOTICE => 1 ),
+					remove_query_arg( array( WP_REST_Cache::CACHE_DELETE, WP_REST_Cache::CACHE_REFRESH ), wp_get_referer() )
+				),
+				self::NONCE_ACTION,
+				self::NONCE_NAME
 			);
 			wp_safe_redirect( $url );
 			exit;
@@ -104,7 +109,7 @@ if ( ! class_exists( 'WP_REST_Cache_Admin' ) ) {
 		 * Maybe add an admin notice.
 		 */
 		public static function admin_notices() {
-			if ( ! empty( $_REQUEST['rest_cache_nonce'] ) && wp_verify_nonce( $_REQUEST['rest_cache_nonce'], 'rest_cache_redirect' ) ) {
+			if ( ! empty( $_REQUEST['rest_cache_nonce'] ) && wp_verify_nonce( $_REQUEST[ self::NONCE_NAME ], self::NONCE_ACTION ) ) {
 				if ( ! empty( $_GET[ self::NOTICE ] ) && 1 === filter_var( $_GET[ self::NOTICE ], FILTER_VALIDATE_INT ) ) {
 					$message = esc_html__( 'The cache has been successfully cleared', 'wp-rest-api-cache' );
 					echo "<div class='notice updated is-dismissible'><p>{$message}</p></div>"; // PHPCS: XSS OK.
@@ -203,7 +208,7 @@ if ( ! class_exists( 'WP_REST_Cache_Admin' ) ) {
 				);
 			} else {
 				return wp_nonce_url(
-					admin_url( 'admin.php?action=' . self::ACTION . '&rest_cache_empty=1' ),
+					admin_url( 'admin.php?action=' . self::ADMIN_ACTION . '&rest_cache_empty=1' ),
 					'rest_cache_options',
 					'rest_cache_nonce'
 				);
