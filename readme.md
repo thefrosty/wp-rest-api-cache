@@ -1,5 +1,8 @@
 WP REST API Cache
 ====
+
+[![Latest release](https://img.shields.io/github/release/thefrosty/wp-rest-api-cache.svg)](https://github.com/thefrosty/wp-rest-api-cache/releases)
+
 Enable caching for the WordPress REST API and the increase speed of your application.
 
 - [Installation](#installation)
@@ -70,6 +73,7 @@ Filters
 | rest_cache_show_admin_menu | boolean **$show** |
 | rest_cache_show_admin_bar_menu | boolean **$show** |
 | allowed_rest_cache_status | array **$status** HTTP Header statuses (defaults to `array( 200 )` |
+| rest_cache_control_no_cache_value | array **$cache_control** Cache-Control header to **not** cache request. (defaults to `array( 'private', 'no-cache', 'no-store', 'must-revalidate' )` |
 
 How to use filters
 ----
