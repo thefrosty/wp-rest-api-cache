@@ -4,7 +4,7 @@
  * Description: Enable caching for WordPress REST API and increase speed of your application
  * Author: Austin Passy
  * Author URI: http://github.com/thefrosty
- * Version: 2.0.4
+ * Version: 2.1.0
  * Plugin URI: https://github.com/thefrosty/wp-rest-api-cache
  */
 
@@ -26,7 +26,7 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 		const CACHE_HEADER_DELETE = 'X-WP-API-Cache-Delete';
 		const CACHE_REFRESH       = 'rest_cache_refresh';
 
-		const VERSION = '2.0.4';
+		const VERSION = '2.1.0';
 
 		/**
 		 * Initiate the class.
@@ -66,6 +66,14 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 			$key         = self::get_cache_key( $request_uri, $server, $request );
 			$group       = self::get_cache_group();
 
+			// Don't cache WP_Errors or a non-readable (GET) method or non valid params.
+			if ( $server->check_authentication() !== null ||
+			     $request->get_method() !== WP_REST_Server::READABLE ||
+			     $request->has_valid_params() !== true
+			) {
+				return $result;
+			}
+
 			// Never cache private, no-cache, no-store, must-revalidate
 			$cache_control = $request->get_header( 'Cache-Control' );
 			if ( $cache_control !== null ) {
@@ -73,6 +81,7 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 				$controls = array_map( 'trim', explode( ',', $cache_control ) );
 				foreach ( $controls as $control ) {
 					if ( isset( $no_cache[ $control ] ) && strcasecmp( $control, $no_cache[ $control ] ) === 0 ) {
+						self::dispatch_shutdown_action( $key );
 						return $result;
 					}
 				}
@@ -93,9 +102,7 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 					}
 				} else {
 					$server->send_header( self::CACHE_HEADER_DELETE, 'soft' );
-					add_action( 'shutdown', function() use ( $key ) {
-						call_user_func( array( __CLASS__, 'delete_cache_by_key' ), $key );
-					} );
+					self::dispatch_shutdown_action( $key );
 				}
 			}
 
@@ -146,6 +153,8 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 				 */
 				do_action( 'wp_rest_cache_skipped', $result, $server, $request );
 
+				// If this is skipped, let's clear the key's cache.
+				self::dispatch_shutdown_action( $key );
 				return $result;
 			}
 
@@ -157,16 +166,23 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 		 *
 		 * @todo Implement cache on this method over 'pre'.
 		 *
-		 * @param WP_REST_Response $response
+		 * @param WP_Error|WP_HTTP_Response|WP_REST_Response $response
 		 * @param WP_REST_Server   $server
 		 * @param WP_REST_Request  $request
 		 * @return WP_HTTP_Response
 		 */
-		public static function post_dispatch( WP_REST_Response $response, WP_REST_Server $server, WP_REST_Request $request ) {
+		public static function post_dispatch( $response, WP_REST_Server $server, WP_REST_Request $request ) {
 			$request_uri = self::get_request_uri();
+			$key = self::get_cache_key( $request_uri, $server, $request );
+
+			// Don't cache WP_Error objects.
+			if ( $response instanceof WP_Error ) {
+				self::dispatch_shutdown_action( $key );
+				return rest_ensure_response( $response );
+			}
+
 			$allowed_cache_status = apply_filters( 'allowed_rest_cache_status', array( WP_Http::OK ) );
 			if ( ! in_array( $response->get_status(), $allowed_cache_status, true ) ) {
-				$key = self::get_cache_key( $request_uri, $server, $request );
 				$server->send_header(
 					self::CACHE_HEADER,
 					esc_attr_x(
@@ -175,13 +191,12 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 						'wp-rest-api-cache'
 					)
 				);
-				add_action( 'shutdown', function() use ( $key ) {
-					call_user_func( array( __CLASS__, 'delete_cache_by_key' ), $key );
-				} );
+				self::dispatch_shutdown_action( $key );
 			}
+
 			self::maybe_send_headers( $request_uri, $server, $request, $response );
 
-			return $response;
+			return rest_ensure_response( $response );
 		}
 
 		/**
@@ -208,11 +223,9 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 
 			// Be sure to remove our added cache refresh & cache delete queries.
 			$uri = remove_query_arg( array( self::CACHE_DELETE, self::CACHE_REFRESH ), $request_uri );
+			$key = sprintf( '%s|%s', $uri, md5( wp_json_encode( $request->get_headers() ) ) );
 
-			return filter_var(
-				apply_filters( 'rest_cache_key', $uri, $server, $request ),
-				FILTER_SANITIZE_STRING
-			);
+			return filter_var( apply_filters( 'rest_cache_key', $key, $server, $request ), FILTER_SANITIZE_STRING );
 		}
 
 		/**
@@ -257,11 +270,12 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 
 		/**
 		 * Return the current REQUEST_URI from the global server variable.
+		 * Don't use `FILTER_SANITIZE_URL` since it will return false when 'http' isn't present.
 		 *
 		 * @return string
 		 */
 		private static function get_request_uri() {
-			return filter_var( $_SERVER['REQUEST_URI'], FILTER_SANITIZE_URL );
+			return filter_var( $_SERVER['REQUEST_URI'], FILTER_SANITIZE_STRING );
 		}
 
 		/**
@@ -314,6 +328,17 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 			$request->set_param( self::CACHE_REFRESH, true );
 
 			return $server->dispatch( $request );
+		}
+
+		/**
+		 * Dispatch a function hooked to WordPress' `shutdown` action to clear the cache by key if it exists.
+		 *
+		 * @param string $key
+		 */
+		private static function dispatch_shutdown_action( $key ) {
+			add_action( 'shutdown', function() use ( $key ) {
+				call_user_func( array( __CLASS__, 'delete_cache_by_key' ), $key );
+			} );
 		}
 	}
 
