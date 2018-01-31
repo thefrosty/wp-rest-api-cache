@@ -24,7 +24,7 @@ if ( ! class_exists( 'WP_REST_Cache_Admin' ) ) {
 		private static $default = array(
 			'timeout' => array(
 				'length' => 1,
-				'period' => WEEK_IN_SECONDS,
+				'period' => HOUR_IN_SECONDS,
 			),
 		);
 
