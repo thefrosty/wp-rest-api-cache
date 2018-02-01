@@ -210,10 +210,16 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 			}
 
 			// Be sure to remove our added cache refresh & cache delete queries.
-			$uri = remove_query_arg( array( self::CACHE_DELETE, self::CACHE_REFRESH ), $request_uri );
-			$key = sprintf( '%s|%s', $uri, md5( wp_json_encode( $request->get_headers() ) ) );
+			$uri = remove_query_arg(
+				array(
+					self::CACHE_DELETE,
+					self::CACHE_FORCE_DELETE,
+					self::CACHE_REFRESH
+				),
+				$request_uri
+			);
 
-			return filter_var( apply_filters( 'rest_cache_key', $key, $server, $request ), FILTER_SANITIZE_STRING );
+			return filter_var( apply_filters( 'rest_cache_key', $uri, $server, $request ), FILTER_SANITIZE_STRING );
 		}
 
 		/**
