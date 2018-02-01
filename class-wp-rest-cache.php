@@ -4,7 +4,7 @@
  * Description: Enable caching for WordPress REST API and increase speed of your application
  * Author: Austin Passy
  * Author URI: http://github.com/thefrosty
- * Version: 2.1.0
+ * Version: 2.1.1
  * Plugin URI: https://github.com/thefrosty/wp-rest-api-cache
  */
 
@@ -26,7 +26,7 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 		const CACHE_HEADER_DELETE = 'X-WP-API-Cache-Delete';
 		const CACHE_REFRESH       = 'rest_cache_refresh';
 
-		const VERSION = '2.1.0';
+		const VERSION = '2.1.1';
 
 		/**
 		 * Initiate the class.
@@ -67,8 +67,7 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 			$group       = self::get_cache_group();
 
 			// Don't cache WP_Errors or a non-readable (GET) method or non valid params.
-			if ( $server->check_authentication() !== null ||
-			     $request->get_method() !== WP_REST_Server::READABLE ||
+			if ( $request->get_method() !== WP_REST_Server::READABLE ||
 			     $request->has_valid_params() !== true
 			) {
 				return $result;
