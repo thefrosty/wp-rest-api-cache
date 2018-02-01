@@ -74,34 +74,23 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 				return $result;
 			}
 
-			// Never cache private, no-cache, no-store, must-revalidate
-			$cache_control = $request->get_header( 'Cache-Control' );
-			if ( $cache_control !== null ) {
-				$no_cache = apply_filters( 'rest_cache_control_no_cache_value', array( 'private', 'no-cache', 'no-store', 'must-revalidate' ) );
-				$controls = array_map( 'trim', explode( ',', $cache_control ) );
-				foreach ( $controls as $control ) {
-					if ( isset( $no_cache[ $control ] ) && strcasecmp( $control, $no_cache[ $control ] ) === 0 ) {
-						self::dispatch_shutdown_action( $key );
-						return $result;
-					}
-				}
-			}
-
 			self::maybe_send_headers( $request_uri, $server, $request );
 
+			$delete = self::validate_query_param( $request, self::CACHE_DELETE );
+			$force = self::validate_query_param( $request, self::CACHE_FORCE_DELETE );
+
 			// Delete the cache.
-			$delete = filter_var( $request->get_param( self::CACHE_DELETE ), FILTER_VALIDATE_BOOLEAN );
-			$force  = filter_var( $request->get_param( self::CACHE_FORCE_DELETE ), FILTER_VALIDATE_BOOLEAN );
-			if ( $delete ) {
+			if ( $delete && null === $request->get_param( self::CACHE_DELETE ) ) {
 				if ( $force ) {
 					if ( self::delete_cache_by_key( $key ) ) {
 						$server->send_header( self::CACHE_HEADER_DELETE, 'true' );
-						$request->set_param( self::CACHE_DELETE, false );
+						$request->set_param( self::CACHE_DELETE, true );
 
 						return self::get_cached_result( $server, $request, $key, $group );
 					}
 				} else {
 					$server->send_header( self::CACHE_HEADER_DELETE, 'soft' );
+					$request->set_param( self::CACHE_DELETE, true );
 					self::dispatch_shutdown_action( $key );
 				}
 			}
@@ -328,6 +317,16 @@ if ( ! class_exists( 'WP_REST_Cache' ) ) {
 			$request->set_param( self::CACHE_REFRESH, true );
 
 			return $server->dispatch( $request );
+		}
+
+		/**
+		 * @param WP_REST_Request $request
+		 * @param string          $key
+		 * @return bool
+		 */
+		private static function validate_query_param( WP_REST_Request $request, $key ) {
+			return array_key_exists( $key, $request->get_query_params() ) &&
+			       1 === filter_var( $request->get_query_params()[ $key ], FILTER_VALIDATE_INT );
 		}
 
 		/**
